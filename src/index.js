@@ -11,8 +11,15 @@ let tocHtml = ""
 
 const repeat = (string, num) => new Array(num + 1).join(string)
 
-const makeSafe = (string, headingIds) => {
-  const key = uslug(string) // slugify
+const makeSafe = (string, headingIds, options) => {
+  let matches = string.match(options.anchorCustomIDPattern);
+
+  let key = uslug(string) // slugify
+
+  if (matches) {
+    key = matches[1];
+  }
+
   if (!headingIds[key]) {
     headingIds[key] = 0
   }
@@ -140,6 +147,7 @@ export default function(md, options) {
     resetIds: true,
     anchorLinkSpace: true,
     anchorLinkSymbolClassName: null,
+    anchorCustomIDPattern: /\{#(.*?)\}/,
     ...options,
   }
 
@@ -169,18 +177,32 @@ export default function(md, options) {
       const heading_close = tokens[i]
 
       if (heading.type === "inline") {
-        let content
+        let content, contentRaw
         if (heading.children.length > 0 &&
             heading.children[0].type === "link_open") {
           // headings that contain links have to be processed
           // differently since nested links aren't allowed in markdown
-          content = heading.children[1].content
-          heading._tocAnchor = makeSafe(content, headingIds)
+          contentRaw = heading.children[1].content;
+          content = heading.children[1].content.replace(options.anchorCustomIDPattern, '');
+          content.trim();
+
+          heading.children[1].content = content;
+          heading._tocAnchor = makeSafe(contentRaw, headingIds, options);
         }
         else {
-          content = heading.content
-          heading._tocAnchor = makeSafe(heading.children
-              .reduce((acc, t) => acc + t.content, ""), headingIds)
+          content = heading.content.replace(options.anchorCustomIDPattern, '');
+          content.trim();
+
+          heading.content = content;
+
+          let t = heading.children.reduce((acc, t) => acc + t.content, "");
+
+          if (heading.children.length > 0) {
+            heading.children[0].content = heading.children[0].content.replace(options.anchorCustomIDPattern, '');
+            heading.children[0].content.trim();
+          }
+
+          heading._tocAnchor = makeSafe(t, headingIds, options)
         }
 
         tocArray.push({
